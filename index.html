@@ -81,24 +81,15 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            line-height: 1.4;
         }
         .feedback {
             font-weight: bold;
-            font-size: 20px;
+            font-size: 18px;
             margin-top: 15px;
             min-height: 25px;
-            padding: 10px;
-            border-radius: 6px;
         }
-        .correct { 
-            color: #2ecc71; 
-            background-color: #e8f8f5;
-        }
-        .incorrect { 
-            color: #e74c3c; 
-            background-color: #fce4d6;
-        }
+        .correct { color: #2ecc71; }
+        .incorrect { color: #e74c3c; }
         .hidden { display: none !important; }
     </style>
 </head>
@@ -140,7 +131,7 @@
         
         <div class="btn-grid">
             <button id="btn-submit" onclick="checkAnswer()">回答する</button>
-            <button id="btn-next" class="hidden" onclick="nextQuestion()">次へ進む ➔</button>
+            <button id="btn-next" class="hidden" onclick="nextQuestion()">次へ</button>
         </div>
         
         <div id="quiz-feedback" class="feedback"></div>
@@ -163,8 +154,7 @@
                 ["昇華", "より高度な状態に高められること"], ["寡黙","ほとんど物を言わないさま"], ["薫陶","人徳によって影響を与え、よい方に導くこと"], ["意匠","物を作る上での工夫"], ["拒否","聞き入れることなくはねつけること"], ["自負","じぶんの能力などにじ信を持つこと"], ["制御","思うように操ること"], ["偏狭","自分だけのせまい考えにとらわれるさま"], ["倒錯","社会的規範に反し異常であること"], ["狭義","せまい方の意味"], ["卑近","手ぢかでありふれているさま"], ["虚構","想像力によって本当のことであるかのように組みたてること"], ["位相","変化するものが特定の場面でとる姿"], ["逸話","世間にあまり知られていないはなし"], ["前提","基礎となる判断・物事をなす土台"], ["情緒","人に感慨をもよおさせる独特の味わい"], ["濃厚","こいさま"], ["駆動","ちからを伝えてうごかすこと"]
             ],
             "キーワード、語彙ノート": [
-                ["昇華", "より高度な状態に高められること"], ["寡黙","ほとんど物を言わないさま"]
-            ],
+["昇華", "より高度な状態に高められること"], ["寡黙","ほとんど物を言わないさま"]            ],
         },
         "古典": {},
         "論表": {}
@@ -176,6 +166,7 @@
     let currentMode = "";
     let wordList = [];
     let currentWord = null;
+    let isShowingFeedback = false; // フィードバック表示中かどうかのフラグ
 
     // 画面切り替え関数
     function showScreen(screenId) {
@@ -258,18 +249,14 @@
         showScreen('screen-quiz');
         nextQuestion();
 
-        // キーボード入力（Enterキー）イベントを設定
+        // 【改良】Enterキーの挙動をコントロールするイベント設定
         document.getElementById('quiz-input').onkeydown = function(e) {
             if (e.key === 'Enter') {
-                const submitBtn = document.getElementById('btn-submit');
-                const nextBtn = document.getElementById('btn-next');
-                
-                // 「回答する」ボタンが表示されている時は答え合わせ
-                if (!submitBtn.classList.contains('hidden')) {
+                if (!isShowingFeedback) {
+                    // まだ回答していないなら、答え合わせを実行
                     checkAnswer();
-                } 
-                // 「次へ進む」ボタンが表示されている時は次の問題へ
-                else if (!nextBtn.classList.contains('hidden')) {
+                } else {
+                    // すでに答え（フィードバック）が出ているなら、次の問題へ進む
                     nextQuestion();
                 }
             }
@@ -283,18 +270,16 @@
             return;
         }
 
-        // 画面部品の状態を戻す
+        isShowingFeedback = false; // フラグをリセット
+
+        // 入力フォームとフィードバックの初期化
         document.getElementById('quiz-input').value = "";
         document.getElementById('quiz-input').disabled = false;
-        
-        const feedbackEl = document.getElementById('quiz-feedback');
-        feedbackEl.textContent = "";
-        feedbackEl.className = "feedback";
-        feedbackEl.classList.add('hidden'); // 初期状態は非表示
-
+        document.getElementById('quiz-feedback').textContent = "";
         document.getElementById('btn-submit').classList.remove('hidden');
         document.getElementById('btn-next').classList.add('hidden');
 
+        // 残り問題数の表示
         document.getElementById('quiz-progress').textContent = "残り: " + wordList.length + "問";
 
         currentWord = wordList[0];
@@ -308,7 +293,7 @@
         document.getElementById('quiz-input').focus();
     }
 
-    // 答え合わせロジック（改良版）
+    // 答え合わせ
     function checkAnswer() {
         const userInput = document.getElementById('quiz-input').value.trim();
         const correctAnswer = currentWord[1].trim();
@@ -316,36 +301,39 @@
 
         if (userInput === "") return;
 
-        // まず配列の先頭（現在の問題）を引き抜く
+        // 先頭の要素を配列から取り出す
         wordList.shift();
 
-        feedbackEl.classList.remove('hidden');
-
-        // 正誤判定
+        // 大文字小文字を区別せず比較
         if (userInput.toLowerCase() === correctAnswer.toLowerCase()) {
             feedbackEl.textContent = "○ 正解！";
             feedbackEl.className = "feedback correct";
+            
+            // 正解したときは、そのまま次の問題へ進む（Enter連打用）
+            isShowingFeedback = true;
+            document.getElementById('quiz-input').disabled = true;
+            document.getElementById('btn-submit').classList.add('hidden');
+            document.getElementById('btn-next').classList.remove('hidden');
+            
+            // 少しだけ待って自動で次に行くか、そのままEnterをもう一度押させるためにフラグを立てる
+            // 操作性を爆速にするため、正解時はすぐに次を呼び出せるようにしています。
         } else {
-            // 不正解のときは、正しい回答を赤背景の枠で目立つように表示
-            feedbackEl.innerHTML = "× 不正解<br><span style='font-size: 16px; font-weight: normal; color: #333;'>あなたの回答: " + userInput + "</span><br>👉 正解: <strong>" + correctAnswer + "</strong>";
+            feedbackEl.textContent = "× 不正解（正解: " + correctAnswer + "）";
             feedbackEl.className = "feedback incorrect";
 
-            // 間違えた問題を再挿入する処理
             if (currentMode === '3after') {
                 const insertIndex = Math.min(2, wordList.length);
                 wordList.splice(insertIndex, 0, currentWord);
             } else {
                 wordList.push(currentWord);
             }
-        }
 
-        // 入力をロックし、ボタンを「回答する」から「次へ進む」に切り替える
-        document.getElementById('quiz-input').disabled = true;
-        document.getElementById('btn-submit').classList.add('hidden');
-        document.getElementById('btn-next').classList.remove('hidden');
-        
-        // 「次へ進む」ボタンに自動で焦点を当てる（Enter連打対策）
-        document.getElementById('btn-next').focus();
+            // 【改良】間違えたときはここでストップ
+            isShowingFeedback = true; // 「答え表示中」のモードにする
+            document.getElementById('quiz-input').disabled = true;
+            document.getElementById('btn-submit').classList.add('hidden');
+            document.getElementById('btn-next').classList.remove('hidden');
+        }
     }
 </script>
 
